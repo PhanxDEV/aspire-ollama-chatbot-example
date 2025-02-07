@@ -1,0 +1,63 @@
+﻿@page "/Chat"
+@using AspireOllama.Web
+@using Microsoft.Extensions.AI
+
+@rendermode InteractiveServer
+
+@inject IChatClient OllamaClient
+
+<PageTitle>Chat</PageTitle>
+
+<div class="chat-container">
+    <div class="chat-header">Chat</div>
+    <div class="chat-messages">
+        @foreach (var message in _messages)
+        {
+            <div class="message @(message.Type == MessageType.Received ? "received" : "sent")">@message.MessageText</div>
+        }
+        
+        @if (_thinking)
+        {
+            <div class="message received"><i>Thinking ...</i></div>
+        }
+    </div>
+    <div class="chat-input">
+        <input type="text" placeholder="Type message ..." @bind="_inputText" disabled="@_thinking">
+        <button @onclick="Send">Send</button>
+    </div>
+</div>
+
+@code {
+    private List<Message> _messages = [];
+
+    private string _inputText = "";
+
+    bool _thinking = false;
+
+    private async Task Send()
+    {
+        if (!string.IsNullOrEmpty(_inputText) && !_thinking)
+        {
+            _thinking = true;
+            
+            _messages.Add(new Message(_inputText, MessageType.Sent));
+            _inputText = "";
+
+            List<Microsoft.Extensions.AI.ChatMessage> messagesForAi = [];
+
+            foreach (var m in _messages)
+            {
+                ChatRole role = m.Type == MessageType.Sent ? ChatRole.User : ChatRole.Assistant;
+                
+                messagesForAi.Add(new Microsoft.Extensions.AI.ChatMessage(role, m.MessageText));
+            }
+
+            var chatCompletion = await OllamaClient.CompleteAsync(messagesForAi);
+            
+            _messages.Add(new (chatCompletion.Message.Text, MessageType.Received));
+
+            _thinking = false;
+        }
+    }
+
+}
